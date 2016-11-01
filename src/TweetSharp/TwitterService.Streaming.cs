@@ -2,6 +2,7 @@
 using Hammock;
 using Hammock.Streaming;
 using Hammock.Web;
+using System.Text;
 
 namespace TweetSharp
 {
@@ -44,14 +45,41 @@ namespace TweetSharp
 						WithHammockPublicStreaming(options, action, "statuses/filter.json");
 		}
 
-		/// <summary>
-		/// Accesses an asynchronous Twitter user stream indefinitely, until terminated.
-		/// </summary>
-		/// <seealso href="http://dev.twitter.com/pages/user_streams" />
-		/// <param name="action"></param>
-		/// <returns></returns>
+        /// <summary>
+        /// Accesses an asynchronous Twitter filter stream indefinitely, until terminated.
+        /// </summary>
+        /// <seealso href="http://dev.twitter.com/pages/streaming_api_methods#statuses-filter" />
+        /// <param name="trackKeywords"></param>
+        /// <param name="action"></param>
+        /// <returns></returns>
 #if !WINDOWS_PHONE
-		public virtual IAsyncResult StreamUser(Action<TwitterStreamArtifact, TwitterResponse> action)
+        public virtual IAsyncResult StreamFilterAndTrack(string trackKeywords, Action<TwitterStreamArtifact, TwitterResponse> action)
+#else
+        public virtual void StreamFilter(Action<TwitterStreamArtifact, TwitterResponse> action)
+#endif
+        {
+            var options = new StreamOptions { ResultsPerCallback = 1 };
+
+            // TODO: Dirty workaround for using track keywords => FilterOptions
+            if (!string.IsNullOrEmpty(trackKeywords))
+            {
+                return WithHammockPublicStreamingAndTrack(trackKeywords, options, action, @"statuses/filter.json");
+            }
+
+#if !WINDOWS_PHONE
+            return
+#endif
+            WithHammockPublicStreaming(options, action, @"statuses/filter.json");
+        }
+
+        /// <summary>
+        /// Accesses an asynchronous Twitter user stream indefinitely, until terminated.
+        /// </summary>
+        /// <seealso href="http://dev.twitter.com/pages/user_streams" />
+        /// <param name="action"></param>
+        /// <returns></returns>
+#if !WINDOWS_PHONE
+        public virtual IAsyncResult StreamUser(Action<TwitterStreamArtifact, TwitterResponse> action)
 #else
         public virtual void StreamUser(Action<TwitterStreamArtifact, TwitterResponse> action)
 #endif
@@ -91,7 +119,24 @@ namespace TweetSharp
 		}
 
 #if !WINDOWS_PHONE
-		private IAsyncResult WithHammockStreamingImpl<T>(RestClient client, RestRequest request, StreamOptions options, Action<T, TwitterResponse> action)
+        private IAsyncResult WithHammockPublicStreamingAndTrack<T>(string trackKeywords, StreamOptions options, Action<T, TwitterResponse> action, string path) where T : class
+#else
+        private void WithHammockPublicStreaming<T>(StreamOptions options, Action<T, TwitterResponse> action, string path) where T : class
+#endif
+        {
+            var request = PrepareHammockQuery(path);
+
+            // TODO: Added the necessary track keywords => FilterOptions
+            request.AddParameter(@"track", trackKeywords);
+
+#if !WINDOWS_PHONE
+            return
+#endif
+                        WithHammockStreamingImpl(_publicStreamsClient, request, options, action);
+        }
+
+#if !WINDOWS_PHONE
+        private IAsyncResult WithHammockStreamingImpl<T>(RestClient client, RestRequest request, StreamOptions options, Action<T, TwitterResponse> action)
 #else
         private void WithHammockStreamingImpl<T>(RestClient client, RestRequest request, StreamOptions options, Action<T, TwitterResponse> action)
 #endif
